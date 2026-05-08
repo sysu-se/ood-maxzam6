@@ -16,8 +16,11 @@
 				candidates.clear($cursor);
 			}
 
-			// 暂时保留原有的hint逻辑，因为它依赖于solveSudoku函数
-			// 后续可以考虑将hint逻辑也集成到领域对象中
+			// 使用领域对象的提示功能
+			const nextHints = gameStore.getNextHints();
+			if (nextHints.length > 0) {
+				gameStore.applyHint(nextHints[0]);
+			}
 		}
 	}
 
