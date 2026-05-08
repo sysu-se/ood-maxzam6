@@ -12,7 +12,11 @@ export function createGameStore(initialGrid = null) {
     grid: game.getSudoku().getGrid(),
     canUndo: game.canUndo(),
     canRedo: game.canRedo(),
-    selectedCell: null
+    selectedCell: null,
+    isExploring: false,
+    explorationStatus: 'not_exploring',
+    candidates: {},
+    nextHints: []
   });
 
   function generate(difficulty) {
@@ -21,24 +25,33 @@ export function createGameStore(initialGrid = null) {
     game.sudoku = newSudoku;
     game.history = [];
     game.future = [];
-    game._saveState();
+    game.isExploring = false;
+    game.explorationSnapshot = null;
+    game.explorationHistory = [];
+    game.failedPaths = new Set();
     updateState();
   }
 
   function guess(row, col, value) {
     let move;
     if (typeof row === 'object' && row !== null) {
-      // 处理对象形式的参数（来自测试）
       move = row;
     } else {
-      // 处理三个单独的参数（来自组件）
       move = { row, col, value };
     }
-    const success = game.guess(move);
-    if (success) {
+    const result = game.guess(move);
+    
+    if (game.isExploring) {
+      if (result.success) {
+        updateState();
+      }
+      return result;
+    }
+    
+    if (result) {
       updateState();
     }
-    return success;
+    return result;
   }
 
   function undo() {
@@ -60,16 +73,55 @@ export function createGameStore(initialGrid = null) {
   function selectCell(row, col) {
     update(state => ({
       ...state,
-      selectedCell: { row, col }
+      selectedCell: { row, col },
+      candidates: getCandidatesForCell(row, col)
     }));
   }
 
+  function getCandidatesForCell(row, col) {
+    const candidates = game.getCandidates(row, col);
+    return { [`${row},${col}`]: candidates };
+  }
+
+  function getNextHints() {
+    return game.getNextHints();
+  }
+
+  function applyHint(hint) {
+    const success = game.applyHint(hint);
+    if (success) {
+      updateState();
+    }
+    return success;
+  }
+
+  function startExploration() {
+    const success = game.startExploration();
+    if (success) {
+      updateState();
+    }
+    return success;
+  }
+
+  function stopExploration(discard = true) {
+    const success = game.stopExploration(discard);
+    if (success) {
+      updateState();
+    }
+    return success;
+  }
+
   function updateState() {
+    const explorationStatus = game.checkExplorationStatus();
     set({
       grid: game.getSudoku().getGrid(),
       canUndo: game.canUndo(),
       canRedo: game.canRedo(),
-      selectedCell: null
+      selectedCell: null,
+      isExploring: game.isExploring,
+      explorationStatus: explorationStatus.status,
+      candidates: {},
+      nextHints: game.getNextHints()
     });
   }
 
@@ -79,7 +131,12 @@ export function createGameStore(initialGrid = null) {
     guess,
     undo,
     redo,
-    selectCell
+    selectCell,
+    getCandidates: getCandidatesForCell,
+    getNextHints,
+    applyHint,
+    startExploration,
+    stopExploration
   };
 }
 
